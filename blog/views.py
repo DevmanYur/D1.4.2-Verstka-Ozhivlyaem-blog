@@ -25,7 +25,6 @@ def index(request):
     fresh_posts = Post.objects.fresh_posts()[:5]
 
     context = {
-        'most_popular_posts': [serialize_post(post) for post in popular_posts],
         'fresh_posts': [serialize_post(post) for post in fresh_posts],
         'popular_posts': [serialize_post(post) for post in popular_posts],
     }
@@ -34,7 +33,7 @@ def index(request):
 
 def post_detail(request, slug):
     post = get_object_or_404(Post, slug=slug)
-    comments = Comment.objects.filter(post=post)
+    comments = post.comments.select_related('author')
     serialized_comments = []
     for comment in comments:
         serialized_comments.append({
