@@ -1,6 +1,33 @@
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth.models import User
+from django.db.models import Count, Prefetch
+
+
+class PostQuerySet(models.QuerySet):
+    def popular_posts(self):
+        order_by_posts = (self.annotate(likes_count=Count('likes')).
+                          order_by('-likes_count').
+                          prefetch_related('author')
+                          )
+        return order_by_posts
+
+    def fetch_with_comments_count(self):
+        id_posts = [post.id for post in self]
+        comments_posts = Post.objects.filter(id__in=id_posts).annotate(comments_count=Count('comments'))
+        id_and_comment_posts = comments_posts.values_list('id', 'comments_count')
+        count_for_id = dict(id_and_comment_posts)
+        for post in self:
+            post.comments_count = count_for_id[post.id]
+        return self
+
+    def fresh_posts(self):
+        order_by_posts = (self.annotate(comments_count = Count('comments')).
+                          order_by('-published_at')
+                          .prefetch_related('author')
+                          )
+
+        return order_by_posts
 
 
 class Post(models.Model):
@@ -21,6 +48,8 @@ class Post(models.Model):
         verbose_name="Кто лайкнул",
         blank=True)
 
+    objects = PostQuerySet.as_manager()
+
     def __str__(self):
         return self.title
 
@@ -37,7 +66,8 @@ class Comment(models.Model):
     post = models.ForeignKey(
         "Post",
         on_delete=models.CASCADE,
-        verbose_name="Пост, к которому написан")
+        verbose_name="Пост, к которому написан",
+        related_name='comments')
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
